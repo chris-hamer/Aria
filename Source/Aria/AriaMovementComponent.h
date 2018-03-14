@@ -25,6 +25,8 @@ class ARIA_API UAriaMovementComponent : public UPawnMovementComponent
 	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
 	FHitResult DoGroundSweep();
 	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
+	TArray<FHitResult> DoGroundSweepMulti();
+	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
 	FHitResult DoGroundTraceSweep();
 	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
 	void AdjustFloor();
@@ -36,13 +38,6 @@ class ARIA_API UAriaMovementComponent : public UPawnMovementComponent
 	bool StepUp(const FVector& Delta, const FHitResult &InHit);
 
 public:
-
-	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
-	void SetDisableGroundSnapping(bool value);
-	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
-	void SetOnTheGround(bool value);
-	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
-	void SetFloorLocation(FVector value);
 
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings") float HalfHeight = 88.0f;

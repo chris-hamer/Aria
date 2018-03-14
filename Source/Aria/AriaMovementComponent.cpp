@@ -13,14 +13,25 @@ FHitResult UAriaMovementComponent::DoGroundSweep()
 	float TraceLength = (OnTheGround ? 1000.0f : 100.0f);
 	FVector Start = UpdatedComponent->GetComponentLocation();
 	FVector End = UpdatedComponent->GetComponentLocation() - TraceLength * FVector::UpVector;
-	FCollisionShape GroundTraceCube = FCollisionShape::MakeBox(FVector(Radius * 0.707f, Radius * 0.707f, 1));
+	float boxheight = HalfHeight*0.25f;
+	FCollisionShape GroundTraceCube = FCollisionShape::MakeBox(FVector(Radius * 0.707f, Radius * 0.707f, boxheight));
 	FCollisionQueryParams GroundTraceQuery;
 	FCollisionResponseParams GroundTraceResponse;
 	FHitResult GroundResult;
 	GetWorld()->SweepSingleByChannel(GroundResult, Start, End, FQuat(FVector(0.f, 0.f, -1.f), PI * 0.25f), ECollisionChannel::ECC_Visibility, GroundTraceCube, GroundTraceQuery, GroundTraceResponse);
 	if (GroundResult.bStartPenetrating) {
-		GroundTraceCube = FCollisionShape::MakeBox(FVector(Radius * 0.407f, Radius * 0.407f, 1));
+		GroundTraceCube = FCollisionShape::MakeBox(FVector(Radius * 0.407f, Radius * 0.407f, boxheight));
 		GetWorld()->SweepSingleByChannel(GroundResult, Start, End, FQuat(FVector(0.f, 0.f, -1.f), PI * 0.25f), ECollisionChannel::ECC_Visibility, GroundTraceCube, GroundTraceQuery, GroundTraceResponse);
+	}
+	FHitResult FirstResult = GroundResult;
+	GetWorld()->SweepSingleByChannel(GroundResult, Start, End, FQuat(FVector(0.f, 0.f, -1.f), 0), ECollisionChannel::ECC_Visibility, GroundTraceCube, GroundTraceQuery, GroundTraceResponse);
+	if (GroundResult.bStartPenetrating) {
+		GroundTraceCube = FCollisionShape::MakeBox(FVector(Radius * 0.407f, Radius * 0.407f, boxheight));
+		GetWorld()->SweepSingleByChannel(GroundResult, Start, End, FQuat(FVector(0.f, 0.f, -1.f), 0), ECollisionChannel::ECC_Visibility, GroundTraceCube, GroundTraceQuery, GroundTraceResponse);
+	}
+	//if (FMath::Abs((CapsuleBottom - GroundResult.ImpactPoint).Z) > FMath::Abs((CapsuleBottom - FirstResult.ImpactPoint).Z)) {
+	if (GroundResult.ImpactPoint.Z > FirstResult.ImpactPoint.Z) {
+		GroundResult = FirstResult;
 	}
 	//End = GroundSweep.ImpactPoint - TraceLength * FVector::UpVector;
 	//GetWorld()->LineTraceSingleByChannel(GroundSweep, Start, End, ECollisionChannel::ECC_Visibility, GroundTraceQuery, GroundTraceResponse);
@@ -37,6 +48,7 @@ FHitResult UAriaMovementComponent::DoGroundTrace()
 	FCollisionResponseParams GroundTraceResponse;
 	FHitResult GroundResult;
 	GetWorld()->LineTraceSingleByChannel(GroundResult, Start, End, ECollisionChannel::ECC_Visibility, GroundTraceQuery, GroundTraceResponse);
+	//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FString::SanitizeFloat(GroundResult.bBlockingHit));
 	return GroundResult;
 }
 
@@ -45,6 +57,7 @@ FHitResult UAriaMovementComponent::DoGroundTraceSweep()
 	float TraceLength = (OnTheGround ? 1000.0f : 100.0f);
 	FVector Start = UpdatedComponent->GetComponentLocation();
 	FVector End = UpdatedComponent->GetComponentLocation() - TraceLength * FVector::UpVector;
+	FVector CapsuleBottom = Start - HalfHeight * FVector::UpVector;
 	FCollisionShape GroundTraceCube = FCollisionShape::MakeBox(FVector(Radius * 0.707f, Radius * 0.707f, HalfHeight));
 	FCollisionQueryParams GroundTraceQuery;
 	FCollisionResponseParams GroundTraceResponse;
@@ -54,25 +67,20 @@ FHitResult UAriaMovementComponent::DoGroundTraceSweep()
 		GroundTraceCube = FCollisionShape::MakeBox(FVector(Radius * 0.407f, Radius * 0.407f, HalfHeight));
 		GetWorld()->SweepSingleByChannel(GroundResult, Start, End, FQuat(FVector(0.f, 0.f, -1.f), PI * 0.25f), ECollisionChannel::ECC_Visibility, GroundTraceCube, GroundTraceQuery, GroundTraceResponse);
 	}
-	End = GroundResult.ImpactPoint - TraceLength * FVector::UpVector;
-	GetWorld()->LineTraceSingleByChannel(GroundResult, Start, End, ECollisionChannel::ECC_Visibility, GroundTraceQuery, GroundTraceResponse);
+	FHitResult FirstResult = GroundResult;
+	GetWorld()->SweepSingleByChannel(GroundResult, Start, End, FQuat(FVector(0.f, 0.f, -1.f), 0), ECollisionChannel::ECC_Visibility, GroundTraceCube, GroundTraceQuery, GroundTraceResponse);
+	if (GroundResult.bStartPenetrating) {
+		GroundTraceCube = FCollisionShape::MakeBox(FVector(Radius * 0.407f, Radius * 0.407f, HalfHeight));
+		GetWorld()->SweepSingleByChannel(GroundResult, Start, End, FQuat(FVector(0.f, 0.f, -1.f), 0), ECollisionChannel::ECC_Visibility, GroundTraceCube, GroundTraceQuery, GroundTraceResponse);
+	}
+	//if (FMath::Abs((CapsuleBottom - GroundResult.ImpactPoint).Z) > FMath::Abs((CapsuleBottom - FirstResult.ImpactPoint).Z)) {
+	if (GroundResult.ImpactPoint.Z > FirstResult.ImpactPoint.Z) {
+		GroundResult = FirstResult;
+	}
+	Start = GroundResult.ImpactPoint + MaxStepHeight * FVector::UpVector;
+	End = GroundResult.ImpactPoint - MaxStepHeight * FVector::UpVector;
+	//GetWorld()->LineTraceSingleByChannel(GroundResult, Start, End, ECollisionChannel::ECC_Visibility, GroundTraceQuery, GroundTraceResponse);
 	return GroundResult;
-}
-
-FVector UAriaMovementComponent::GetRampDelta(FVector Delta)
-{
-	if (!OnTheGround) {
-		return Delta;
-	}
-	FVector GroundNormal = GroundSweep.ImpactNormal;
-	if (GroundNormal.Z < (1.f - KINDA_SMALL_NUMBER) && GroundNormal.Z > KINDA_SMALL_NUMBER) {
-		const float FloorDotDelta = (GroundNormal | Delta);
-		FVector RampMovement(Delta.X, Delta.Y, -FloorDotDelta / GroundNormal.Z);
-
-		return RampMovement;
-	}
-
-	return Delta;
 }
 
 float UAriaMovementComponent::GetSimulationTimeStep(float RemainingTime, int32 Iterations)
@@ -83,7 +91,8 @@ float UAriaMovementComponent::GetSimulationTimeStep(float RemainingTime, int32 I
 		{
 			// Subdivide moves to be no longer than MaxSimulationTimeStep seconds
 			RemainingTime = FMath::Min(0.05f, RemainingTime * 0.5f);
-		} else {
+		}
+		else {
 
 		}
 	}
@@ -161,7 +170,7 @@ bool UAriaMovementComponent::StepUp(const FVector& Delta, const FHitResult &InHi
 	float PawnInitialFloorBaseZ = OldLocation.Z - HalfHeight;
 	float PawnFloorPointZ = PawnInitialFloorBaseZ;
 
-	// Since we float a variable amount off the floor, we need to enforce max step height off the actual point of impact with the floor.
+	// Since we float a vAriable amount off the floor, we need to enforce max step height off the actual point of impact with the floor.
 	const float FloorDist = FMath::Max(0.f, CurrentFloorDist);
 	PawnInitialFloorBaseZ -= FloorDist;
 	StepTravelUpHeight = FMath::Max(StepTravelUpHeight - FloorDist, 0.f);
@@ -331,8 +340,78 @@ void UAriaMovementComponent::AdjustFloor()
 	float Dist = (UpdatedComponent->GetComponentLocation() - HalfHeight * FVector::UpVector - GroundSweep.ImpactPoint).Z - 5.0f;
 	FHitResult Hit;
 	SafeMoveUpdatedComponent(FVector(0, 0, -Dist), FQuat::Identity, true, Hit);
-	SafeMoveUpdatedComponent(FVector(0, 0, 5.0f), FQuat::Identity, true, Hit);
+	if (Hit.ImpactNormal.Z < 0.707f) {
+		Hit.ImpactNormal = FVector::VectorPlaneProject(Hit.ImpactNormal, FVector::UpVector).GetSafeNormal();
+		//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FVector(0, 0, -Dist).ToString() + "     000       " + FString::SanitizeFloat(Hit.ImpactNormal.Z));
+	}
+	//SafeMoveUpdatedComponent(FVector(0, 0, 5.0f), FQuat::Identity, true, Hit);
+	if (Hit.ImpactNormal.Z < 0.707f) {
+		Hit.ImpactNormal = FVector::VectorPlaneProject(Hit.ImpactNormal, FVector::UpVector).GetSafeNormal();
+		//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FVector(0, 0, 5.0f).ToString() + "     000       " + FString::SanitizeFloat(Hit.ImpactNormal.Z));
+	}
 	CurrentFloorDist = (UpdatedComponent->GetComponentLocation() - HalfHeight * FVector::UpVector - GroundSweep.ImpactPoint).Z - 5.0f;
+}
+
+FVector UAriaMovementComponent::GetRampDelta(FVector Delta)
+{
+	//FHitResult help = DoGroundTrace();
+	if (!OnTheGround) {
+		return Delta;
+	}
+	FVector GroundNormal = GroundSweep.ImpactNormal;
+	if (GroundNormal.Z < (1.f - KINDA_SMALL_NUMBER) && GroundNormal.Z > KINDA_SMALL_NUMBER) {
+		const float FloorDotDelta = (GroundNormal | Delta);
+		FVector RampMovement(Delta.X, Delta.Y, -FloorDotDelta / GroundNormal.Z);
+
+		return RampMovement;
+	}
+
+	return Delta;
+}
+
+TArray<FHitResult> UAriaMovementComponent::DoGroundSweepMulti()
+{
+	float TraceLength = (OnTheGround ? 1000.0f : 100.0f);
+	FVector Start = UpdatedComponent->GetComponentLocation();
+	FVector End = UpdatedComponent->GetComponentLocation() - TraceLength * FVector::UpVector;
+	float boxheight = HalfHeight*1.0f;
+	boxheight = 1.0f;
+	FCollisionShape GroundTraceCube = FCollisionShape::MakeBox(FVector(Radius * 0.707f, Radius * 0.707f, boxheight));
+	FCollisionQueryParams GroundTraceQuery;
+	GroundTraceQuery.bFindInitialOverlaps = true;
+	FCollisionResponseParams GroundTraceResponse;
+	FHitResult GroundResult;
+	TArray<FHitResult> Results;
+	TArray<FHitResult> Results2;
+	GetWorld()->SweepMultiByChannel(Results, Start, End, FQuat(FVector(0.f, 0.f, -1.f), PI * 0.25f), ECollisionChannel::ECC_Visibility, GroundTraceCube, GroundTraceQuery, GroundTraceResponse);
+	Results2.Append(Results);
+	if (Results.Num() > 0 && Results.Last().Actor != NULL) {
+		GroundTraceQuery.AddIgnoredActor(Results.Last().Actor.Get());
+		if (Results.Last().ImpactNormal.Z > 0.707f) {
+			return Results2;
+		}
+	}
+	GetWorld()->SweepMultiByChannel(Results, Start, End, FQuat(FVector(0.f, 0.f, -1.f), PI * 0.25f), ECollisionChannel::ECC_Visibility, GroundTraceCube, GroundTraceQuery, GroundTraceResponse);
+	Results2.Append(Results);
+	//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FString::SanitizeFloat(Results.Num()));
+	GetWorld()->SweepSingleByChannel(GroundResult, Start, End, FQuat(FVector(0.f, 0.f, -1.f), PI * 0.25f), ECollisionChannel::ECC_Visibility, GroundTraceCube, GroundTraceQuery, GroundTraceResponse);
+	if (GroundResult.bStartPenetrating) {
+		GroundTraceCube = FCollisionShape::MakeBox(FVector(Radius * 0.407f, Radius * 0.407f, boxheight));
+		GetWorld()->SweepSingleByChannel(GroundResult, Start, End, FQuat(FVector(0.f, 0.f, -1.f), PI * 0.25f), ECollisionChannel::ECC_Visibility, GroundTraceCube, GroundTraceQuery, GroundTraceResponse);
+	}
+	FHitResult FirstResult = GroundResult;
+	GetWorld()->SweepSingleByChannel(GroundResult, Start, End, FQuat(FVector(0.f, 0.f, -1.f), 0), ECollisionChannel::ECC_Visibility, GroundTraceCube, GroundTraceQuery, GroundTraceResponse);
+	if (GroundResult.bStartPenetrating) {
+		GroundTraceCube = FCollisionShape::MakeBox(FVector(Radius * 0.407f, Radius * 0.407f, boxheight));
+		GetWorld()->SweepSingleByChannel(GroundResult, Start, End, FQuat(FVector(0.f, 0.f, -1.f), 0), ECollisionChannel::ECC_Visibility, GroundTraceCube, GroundTraceQuery, GroundTraceResponse);
+	}
+	//if (FMath::Abs((CapsuleBottom - GroundResult.ImpactPoint).Z) > FMath::Abs((CapsuleBottom - FirstResult.ImpactPoint).Z)) {
+	if (GroundResult.ImpactPoint.Z > FirstResult.ImpactPoint.Z) {
+		GroundResult = FirstResult;
+	}
+	//End = GroundSweep.ImpactPoint - TraceLength * FVector::UpVector;
+	//GetWorld()->LineTraceSingleByChannel(GroundSweep, Start, End, ECollisionChannel::ECC_Visibility, GroundTraceQuery, GroundTraceResponse);
+	return Results2;
 }
 
 void UAriaMovementComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
@@ -340,12 +419,28 @@ void UAriaMovementComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	if (OnTheGround) {
-		GroundSweep = DoGroundTraceSweep();
-		AdjustFloor();
+		//GroundSweep = DoGroundTraceSweep();
+		//AdjustFloor();
 	}
 
 	FVector Accel = ConsumeInputVector();
 	FVector Input = Velocity + Accel*DeltaTime;
+
+	TArray<FHitResult> GroundSweep2 = DoGroundSweepMulti();
+	for (int i = 0; i < GroundSweep2.Num(); i++)
+	{
+		FVector f1 = FVector::VectorPlaneProject(GroundSweep2[i].ImpactNormal, FVector::UpVector).GetSafeNormal();
+		//FVector dx = FVector::VectorPlaneProject((GroundSweep2[i].ImpactPoint - UpdatedComponent->GetComponentLocation()).GetSafeNormal(), FVector::UpVector).GetSafeNormal();
+		if (OnTheGround &&
+			GroundSweep2[i].ImpactNormal.Z < FMath::Cos(MaxSlopeAngle*(PI / 180)) &&
+			FVector::DotProduct(Input.GetSafeNormal(), f1) < -0.1f) {
+			Input = FVector::VectorPlaneProject(Input, f1);
+		}
+		//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FString::SanitizeFloat(GroundSweep2[i].ImpactNormal.Z) + "           " + GroundSweep2[i].Actor->GetName() + "        " + (GroundSweep2[i].ImpactPoint - UpdatedComponent->GetComponentLocation()).GetSafeNormal().ToString());
+		//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, GroundSweep2[i].Actor->GetName() + "           " +(GroundSweep2[i].ImpactPoint).ToString()+"            "+ UpdatedComponent->GetComponentLocation().ToString());
+	}
+
+	//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FString::SanitizeFloat(GroundSweep.ImpactNormal.Z));
 
 	FVector OriginalLocation = UpdatedComponent->GetComponentLocation();
 
@@ -364,13 +459,18 @@ void UAriaMovementComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 		////GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FString::SanitizeFloat(Delta.Size()));
 
 		SafeMoveUpdatedComponent(RampVector, FQuat::Identity, true, MoveHit);
+		//if (MoveHit.ImpactNormal.Z < 0.707f) {
+		//	MoveHit.ImpactNormal = FVector::VectorPlaneProject(MoveHit.ImpactNormal, FVector::UpVector).GetSafeNormal();
+		//	GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, RampVector.ToString() + "     000       " + FString::SanitizeFloat(MoveHit.ImpactNormal.Z));
+		//}
 
 		float LastMoveTimeSlice = timeTick;
 
 		if (MoveHit.bStartPenetrating) {
 			HandleImpact(MoveHit);
 			SlideAlongSurface(Delta, 1.f, MoveHit.Normal, MoveHit, true);
-		} else if (MoveHit.IsValidBlockingHit()) {
+		}
+		else if (MoveHit.IsValidBlockingHit()) {
 			float PercentTimeApplied = MoveHit.Time;
 
 			if ((MoveHit.Time > 0.f) && (MoveHit.Normal.Z > KINDA_SMALL_NUMBER)) {
@@ -399,19 +499,4 @@ void UAriaMovementComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 	}
 
 	Velocity = (UpdatedComponent->GetComponentLocation() - OriginalLocation) / DeltaTime;
-}
-
-void UAriaMovementComponent::SetDisableGroundSnapping(bool value)
-{
-	DisableGroundSnapping = value;
-}
-
-void UAriaMovementComponent::SetOnTheGround(bool value)
-{
-	OnTheGround = value;
-}
-
-void UAriaMovementComponent::SetFloorLocation(FVector value)
-{
-	FloorLocation = value;
 }
