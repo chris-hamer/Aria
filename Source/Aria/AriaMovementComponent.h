@@ -20,22 +20,22 @@ class ARIA_API UAriaMovementComponent : public UPawnMovementComponent
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
 
 	float GetSimulationTimeStep(float RemainingTime, int32 Iterations);
-	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
-	FHitResult DoGroundTrace();
-	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
-	FHitResult DoGroundSweep();
-	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
-	TArray<FHitResult> DoGroundSweepMulti();
-	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
-	FHitResult DoGroundTraceSweep();
-	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
-	void AdjustFloor();
-	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
-	FVector GetRampDelta(FVector Delta);
-	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
-	bool CanStepUp(const FHitResult& Hit);
-	UFUNCTION(BlueprintCallable, Category = "Shards Character Utilities")
-	bool StepUp(const FVector& Delta, const FHitResult &InHit);
+	UFUNCTION(BlueprintCallable, Category = "Aria Character Utilities")
+		FHitResult DoGroundTrace();
+	UFUNCTION(BlueprintCallable, Category = "Aria Character Utilities")
+		FHitResult DoGroundSweep();
+	UFUNCTION(BlueprintCallable, Category = "Aria Character Utilities")
+		TArray<FHitResult> DoGroundSweepMulti();
+	UFUNCTION(BlueprintCallable, Category = "Aria Character Utilities")
+		FHitResult DoGroundTraceSweep();
+	UFUNCTION(BlueprintCallable, Category = "Aria Character Utilities")
+		void AdjustFloor();
+	UFUNCTION(BlueprintCallable, Category = "Aria Character Utilities")
+		FVector GetRampDelta(FVector Delta);
+	UFUNCTION(BlueprintCallable, Category = "Aria Character Utilities")
+		bool CanStepUp(const FHitResult& Hit);
+	UFUNCTION(BlueprintCallable, Category = "Aria Character Utilities")
+		bool StepUp(const FVector& Delta, const FHitResult &InHit);
 
 public:
 
@@ -54,6 +54,8 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings") bool OnTheGround;
 	FVector FloorLocation;
+
+	float dt;
 
 	FHitResult GroundHitResult;
 	FHitResult PrevGroundHitResult;

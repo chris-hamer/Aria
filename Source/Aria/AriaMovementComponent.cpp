@@ -337,16 +337,17 @@ void UAriaMovementComponent::AdjustFloor()
 	if (!GroundSweep.IsValidBlockingHit()) {
 		return;
 	}
+
 	float Dist = (UpdatedComponent->GetComponentLocation() - HalfHeight * FVector::UpVector - GroundSweep.ImpactPoint).Z - 5.0f;
 	FHitResult Hit;
 	SafeMoveUpdatedComponent(FVector(0, 0, -Dist), FQuat::Identity, true, Hit);
 	if (Hit.ImpactNormal.Z < 0.707f) {
-		Hit.ImpactNormal = FVector::VectorPlaneProject(Hit.ImpactNormal, FVector::UpVector).GetSafeNormal();
-		//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FVector(0, 0, -Dist).ToString() + "     000       " + FString::SanitizeFloat(Hit.ImpactNormal.Z));
+		HandleImpact(Hit, GetWorld()->DeltaTimeSeconds, FVector(0, 0, -Dist));
+		SlideAlongSurface(FVector(0, 0, -Dist), 1.f - Hit.Time, Hit.ImpactNormal, Hit, true);
 	}
 	//SafeMoveUpdatedComponent(FVector(0, 0, 5.0f), FQuat::Identity, true, Hit);
 	if (Hit.ImpactNormal.Z < 0.707f) {
-		Hit.ImpactNormal = FVector::VectorPlaneProject(Hit.ImpactNormal, FVector::UpVector).GetSafeNormal();
+		//Hit.ImpactNormal = FVector::VectorPlaneProject(Hit.ImpactNormal, FVector::UpVector).GetSafeNormal();
 		//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FVector(0, 0, 5.0f).ToString() + "     000       " + FString::SanitizeFloat(Hit.ImpactNormal.Z));
 	}
 	CurrentFloorDist = (UpdatedComponent->GetComponentLocation() - HalfHeight * FVector::UpVector - GroundSweep.ImpactPoint).Z - 5.0f;
@@ -417,7 +418,7 @@ TArray<FHitResult> UAriaMovementComponent::DoGroundSweepMulti()
 void UAriaMovementComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
+	dt = DeltaTime;
 	if (OnTheGround) {
 		//GroundSweep = DoGroundTraceSweep();
 		//AdjustFloor();
@@ -425,17 +426,26 @@ void UAriaMovementComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 
 	FVector Accel = ConsumeInputVector();
 	FVector Input = Velocity + Accel*DeltaTime;
-
 	TArray<FHitResult> GroundSweep2 = DoGroundSweepMulti();
+	FVector PlayerBottom = UpdatedComponent->GetComponentLocation() - FVector::UpVector*HalfHeight + FVector::UpVector*MaxStepHeight;
+
 	for (int i = 0; i < GroundSweep2.Num(); i++)
 	{
 		FVector f1 = FVector::VectorPlaneProject(GroundSweep2[i].ImpactNormal, FVector::UpVector).GetSafeNormal();
 		//FVector dx = FVector::VectorPlaneProject((GroundSweep2[i].ImpactPoint - UpdatedComponent->GetComponentLocation()).GetSafeNormal(), FVector::UpVector).GetSafeNormal();
 		if (OnTheGround &&
-			GroundSweep2[i].ImpactNormal.Z < FMath::Cos(MaxSlopeAngle*(PI / 180)) &&
-			FVector::DotProduct(Input.GetSafeNormal(), f1) < -0.1f) {
-			Input = FVector::VectorPlaneProject(Input, f1);
+			GroundSweep2[i].ImpactNormal.Z < FMath::Cos(MaxSlopeAngle*(PI / 180))) {
+			if (FVector::DotProduct(Input.GetSafeNormal(), f1) < -0.1f) {
+				//Input = Input.MirrorByVector(f1);
+				//Input = FVector::VectorPlaneProject(Input, f1);
+				//  && (PlayerBottom | FVector::UpVector) < (GroundSweep2[i].ImpactPoint | FVector::UpVector
+				Input = FVector::VectorPlaneProject(Input, f1);
+				//Input = FMath::Lerp(Input.MirrorByVector(f1),FVector::VectorPlaneProject(Input,f1),0.9f);
+			}
+			//Input += f1*30.0f;
 		}
+		//if (GroundSweep2[i].GetActor() != NULL)
+		//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FString::SanitizeFloat(GroundSweep2[i].ImpactNormal.Z) + "           " + GroundSweep2[i].Actor->GetName() + "        " + (GroundSweep2[i].ImpactPoint - UpdatedComponent->GetComponentLocation()).GetSafeNormal().ToString());
 		//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FString::SanitizeFloat(GroundSweep2[i].ImpactNormal.Z) + "           " + GroundSweep2[i].Actor->GetName() + "        " + (GroundSweep2[i].ImpactPoint - UpdatedComponent->GetComponentLocation()).GetSafeNormal().ToString());
 		//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, GroundSweep2[i].Actor->GetName() + "           " +(GroundSweep2[i].ImpactPoint).ToString()+"            "+ UpdatedComponent->GetComponentLocation().ToString());
 	}
@@ -457,9 +467,45 @@ void UAriaMovementComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 		FVector RampVector = GetRampDelta(Delta);
 
 		////GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FString::SanitizeFloat(Delta.Size()));
+		FScopedMovementUpdate ScopedStepUpMovement(UpdatedComponent, EScopedUpdate::DeferredUpdates);
 
-		SafeMoveUpdatedComponent(RampVector, FQuat::Identity, true, MoveHit);
-		//if (MoveHit.ImpactNormal.Z < 0.707f) {
+		SafeMoveUpdatedComponent(RampVector, UpdatedComponent->GetComponentQuat(), true, MoveHit);
+		FHitResult h = MoveHit;
+		FVector f1 = FVector::VectorPlaneProject(MoveHit.ImpactNormal, FVector::UpVector).GetSafeNormal();
+		h.ImpactNormal = f1;
+		//FVector dx = FVector::VectorPlaneProject((GroundSweep2[i].ImpactPoint - UpdatedComponent->GetComponentLocation()).GetSafeNormal(), FVector::UpVector).GetSafeNormal();
+		if (OnTheGround &&
+			MoveHit.ImpactNormal.Z < FMath::Cos(MaxSlopeAngle*(PI / 180)) &&
+			RampVector.Z < 0.0f) {
+
+			// an unclimbable slope
+			// literally the worst possible thing that could ever happen ever
+			// basic vector arithmetic won't save you
+			// slidealongsurface won't save you
+			// you are alone in this hell
+			// there is no god here
+			// only slopes
+
+			if (FVector::DotProduct(Input.GetSafeNormal(), f1) < -0.1f) {
+				//Input = Input.MirrorByVector(f1);
+				//Input = FVector::VectorPlaneProject(Input, f1);
+				//Input = FVector::VectorPlaneProject(Input, f1);
+				//Input = FMath::Lerp(Input.MirrorByVector(f1),FVector::VectorPlaneProject(Input,f1),0.9f);
+			}
+			ScopedStepUpMovement.RevertMove();
+			FVector out = UpdatedComponent->GetComponentLocation() - MoveHit.ImpactPoint;
+			SafeMoveUpdatedComponent(RampVector + f1*timeTick*out.Size(), UpdatedComponent->GetComponentQuat(), true, h);;//FMath::Abs(FVector::CrossProduct(RampVector,f1).Size())
+																														  //GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, (f1*timeTick*out.Size()).ToString());
+																														  //GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FString::SanitizeFloat(Velocity.X));
+			float PercentTimeApplied = h.Time;
+			float LastMoveTimeSlice = timeTick;
+			HandleImpact(h, LastMoveTimeSlice, RampVector + f1*timeTick*out.Size());
+			SlideAlongSurface(RampVector + f1*timeTick*out.Size(), 1.f - PercentTimeApplied, f1, h, true);
+			//SlideAlongSurface(f1*timeTick*out.Size(), 1.f - PercentTimeApplied, h.Normal, h, true);
+			continue;
+		}
+		//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, FString::SanitizeFloat(GroundSweep2[i].ImpactNormal.Z) + "           " + GroundSweep2[i].Actor->GetName() + "        " + (GroundSweep2[i].ImpactPoint - UpdatedComponent->GetComponentLocation()).GetSafeNormal().ToString());
+		//GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, GroundSweep2[i].Actor->GetName() + "           " +(GroundSweep2[i].ImpactPoint).ToString()+"            "+ UpdatedComponent->GetComponentLocation().ToString());oveHit.ImpactNormal.Z < 0.707f) {
 		//	MoveHit.ImpactNormal = FVector::VectorPlaneProject(MoveHit.ImpactNormal, FVector::UpVector).GetSafeNormal();
 		//	GEngine->AddOnScreenDebugMessage(-1, 234, FColor::Cyan, RampVector.ToString() + "     000       " + FString::SanitizeFloat(MoveHit.ImpactNormal.Z));
 		//}
@@ -484,16 +530,16 @@ void UAriaMovementComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 				PercentTimeApplied = FMath::Clamp(PercentTimeApplied + SecondHitPercent, 0.f, 1.f);
 
 				HandleImpact(MoveHit, LastMoveTimeSlice, RampVector);
-				SlideAlongSurface(Delta, 1.f - PercentTimeApplied, MoveHit.Normal, MoveHit, true);
+				SlideAlongSurface(RampVector, 1.f - PercentTimeApplied, MoveHit.Normal, MoveHit, true);
 			}
 
 			if (MoveHit.IsValidBlockingHit()) {
 				// Normal things
 				if (OnTheGround) {
-					StepUp(Delta * (1.f - PercentTimeApplied), Hit);
+					//StepUp(Delta * (1.f - PercentTimeApplied), Hit);
 				}
 				HandleImpact(MoveHit, LastMoveTimeSlice, RampVector);
-				SlideAlongSurface(Delta, 1.f - PercentTimeApplied, MoveHit.Normal, MoveHit, true);
+				SlideAlongSurface(RampVector, 1.f - PercentTimeApplied, MoveHit.Normal, MoveHit, true);
 			}
 		}
 	}
